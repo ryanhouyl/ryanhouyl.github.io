@@ -2,8 +2,8 @@
 <blockquote>
 <p>In general you can use an enum as if it were another way to create a data type, and then just put the results to work.<br>In many ways you can treat an enum as if it were any other class.  In fact, enums are classes and have their own methods.</p>
 </blockquote>
-<h3 id="enum-语法规则"><a href="#enum-语法规则" class="headerlink" title="enum 语法规则"></a>enum 语法规则</h3><span id="more"></span>
-<p>创建枚举类需要使用 enum 关键字，隐含了所创建的类型都是 java.lang.Enum 类的子类。枚举类中定义的每一个值(实例对象)都会通过 Enum 类的构造函数 <code>protected Enum(String name, int ordinal)</code> 来隐式创建，对象的名称被转为一个字符串 name，并且 ordinal 记录了此值被创建的顺序，从 0 开始(该顺序值也是枚举类可以支持 <code>switch</code> 关键字的原因所在)</p>
+<span id="more"></span>
+<h3 id="enum-语法规则"><a href="#enum-语法规则" class="headerlink" title="enum 语法规则"></a>enum 语法规则</h3><p>创建枚举类需要使用 enum 关键字，隐含了所创建的类型都是 java.lang.Enum 类的子类。枚举类中定义的每一个值(实例对象)都会通过 Enum 类的构造函数 <code>protected Enum(String name, int ordinal)</code> 来隐式创建，对象的名称被转为一个字符串 name，并且 ordinal 记录了此值被创建的顺序，从 0 开始(该顺序值也是枚举类可以支持 <code>switch</code> 关键字的原因所在)</p>
 <h3 id="为什么要使用枚举类？"><a href="#为什么要使用枚举类？" class="headerlink" title="为什么要使用枚举类？"></a>为什么要使用枚举类？</h3><p>在不少实际场景中，<strong>一个类的对象是有限且固定的</strong>，如季节类对象(一年四季)等，我们可以把这些类的对象一次性创建好放到类中以供调用，且不能在类的外部再创建该类的对象；知道了枚举类的应用场景，我们完全可以自己手动实现一个枚举类：</p>
 <ul>
 <li>枚举类中的对象不能通过 new 关键字创建，所以要私有化构造器</li>
