@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content=""><title>Using and avoiding null | 0x80x17</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=1.0.0"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/normalize/latest/normalize.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/latest/pure-min.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/latest/grids-responsive-min.min.css"><link rel="stylesheet" href="//lib.baomitu.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//lib.baomitu.com/jquery/latest/jquery.min.js"></script><link rel="icon" mask="" sizes="any" href="/favicon.ico"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><script type="text/javascript" src="//lib.baomitu.com/clipboard.js/latest/clipboard.min.js"></script><script type="text/javascript" src="//lib.baomitu.com/toastr.js/latest/toastr.min.js"></script><link rel="stylesheet" href="//lib.baomitu.com/toastr.js/latest/toastr.min.css"><meta name="generator" content="Hexo 7.0.0"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">Using and avoiding null</h1><a id="logo" href="/.">0x80x17</a><p class="description">hello, world:)</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">Using and avoiding null</h1><div class="post-meta">2022-06-01</div><div class="clear"><div class="toc-article" id="toc"><div class="toc-title">文章目录</div><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-avoid-null%EF%BC%9F"><span class="toc-text">Why avoid null？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Specific-Cases"><span class="toc-text">Specific Cases</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Optional"><span class="toc-text">Optional</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Making-an-Optional"><span class="toc-text">Making an Optional</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Query-methods"><span class="toc-text">Query methods</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#What%E2%80%99s-the-point"><span class="toc-text">What’s the point?</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Convenience-methods"><span class="toc-text">Convenience methods</span></a></li></ol></div></div><div class="post-content"><p>文章翻译自 Google Guava 文档，原文链接: <a target="_blank" rel="noopener" href="https://github.com/google/guava/wiki/UsingAndAvoidingNullExplained">Using and avoiding null</a></p>
+<h3 id="Why-avoid-null？"><a href="#Why-avoid-null？" class="headerlink" title="Why avoid null？"></a>Why avoid null？</h3><blockquote>
+<p>“Null sucks.” -Doug Lea<br><br><br>“I call it my billion-dollar mistake.” - Sir C. A. R. Hoare, on his invention of the null reference</p>
+</blockquote>
+<p>随意使用 null 会带来比预料中更多的 bug。在研究了 Google 内部的代码库后，发现在高达95%的情况下，collections 中不应该有任何 null 值，对于开发者来说，往 collections 中添加 null 时 fail fast 而不是默默接受是更合理的</p>
+<span id="more"></span>
+
+<p>此外，null 非常有歧义性。很难从返回的 null 得到具体的含义－－例如，<code>Map.get(key)</code> 返回 null，既可能是因为该 key 对应的 value 是 null，也可能是因为该 key 不存在。null 可以表示失败，也可以表示成功，可以表示几乎所有东西。使用其他表意更清晰的东西而不是 null 可以增强代码可读性</p>
+<p>上面说了，绝大部分情况下都不要随意使用 null，同时这也说明了 null 在一些场景下的使用是合理的。从内存和速度的角度来看，使用 null 很”廉价”，而且在对象数组中也不可避免。不同于类库，在应用代码中，null 通常会因表义不清，进而带来歧义和奇葩的 bug－－比如，当 <code>Map.get</code> 返回 null，它可以表示值不存在或者值存在但是为 null。更要命的是，null 不会给 null 值本身到底意味着什么提供任何提示</p>
+<p>综上原因，只要存在可以方便使用 null 的 workaround，Guava 中相应的很多工具类都采用 fail fast 策略拒绝 null 值。此外，Guava 提供了很多工具避免你使用 null，或者在你必须要使用 null 时用起来更简单</p>
+<h3 id="Specific-Cases"><a href="#Specific-Cases" class="headerlink" title="Specific Cases"></a>Specific Cases</h3><p>如果你想要在 <code>Set</code> 或者 <code>Map</code> 的 key 中使用 null，不要这么做！在查询操作中单独定义关于 null 值的 <strong>special-case</strong> 会使代码更加清晰</p>
+<p>如果你想在 <code>Map</code> 中使用值为 null 的 value，那么把这个键值对单独定义出来。把 <code>Set</code> 中非空的 key (或者为空的 key)单独定义。因为我们很容易把 Map 中不存在某个 key 和 Map 中存在某个 key，该 key 对应的 value 值为 null 这两种完全不同的情景搞混。把这样的 key 单独定义出来要好得多，同时这样会<strong>强迫你去思考</strong>你的应用中一个 key 对应的 value 值为空，是怎样的一种场景</p>
+<p>如果你在 <code>List</code> 中使用 null，而这个 List 是稀疏的，可能定义一个 <code>Map&lt;Integer, E&gt;</code> (key 为 List 元素的下标值，value 为对应的 List 元素)会让代码更加高效，同时也可能更符合你的需求</p>
+<p>考虑一下是否存在一个 “null object” 可以使用，这种情况不总是存在，但是有些场景，比如一个枚举类可以加一个常量来代表你希望 null 值所表示的含义。例如，在 <code>java.math.RoundingMode</code> 中有一个 <code>UNNECESSARY</code> 值来表示 “do no rounding, and throw an exception if rounding would be necessary.”</p>
+<p>如果你确实需要 null 值，那就不要使用 null-hostile 的集合类（比如 <code>ImmutableList, ImmutableMap</code>），可以使用支持 null 的集合类实现。比如，使用 <code>Collections.unmodifiableList(Collection&lt;? extends T&gt; c)</code> 而不是 <code>ImmutableList</code></p>
+<h3 id="Optional"><a href="#Optional" class="headerlink" title="Optional"></a>Optional</h3><p>注: JDK 1.8 中已经引入了类似的 Optional 工具类，基本思想是一致的: null 指针之所以存在问题，是因为你可以在不检查 null 的情况下访问对象的成员方法和成员变量(null 解引用导致 NPE)。使用 Optional 可以强迫你去思考 null 这种情况或者通过类似 <code>ifPresent(Consumer&lt;? super T&gt; consumer)</code> 这样的方法把判断是否为 null 和访问操作合二为一，只有不为 null 时才能进行相应操作</p>
+<p>在很多场景下，我们程序员使用 null 是用来<strong>表示某种缺失</strong>：在某个地方可能会存在一个值，但是现在没有或者找不到。<code>Optional&lt;T&gt;</code> 把可为空的引用T替换为一个非空的 Optional 值。一个 Optional 要么包含一个非空的引用T(在这种场景下我们说这个引用是 <strong>present</strong> 的)，要么什么也不包含（在这种场景下，我们说这个引用是 <strong>absent</strong> 的）。即引用要么 present 要么 absent，不存在 <strong>contain null</strong>，避免产生歧义</p>
+<p>下面列一些常用的操作：（注: 下述方法均为 JDK 中 <code>Optional&lt;T&gt;</code> 类的方法，使用方式和 Guava 基本一致 ）</p>
+<h4 id="Making-an-Optional"><a href="#Making-an-Optional" class="headerlink" title="Making an Optional"></a>Making an Optional</h4><p>Optional 中的静态方法:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Optional.of(T)</td>
+<td>Make an Optional containing the given non-null value, or fail fast on null.</td>
+</tr>
+<tr>
+<td>Optional.ofNullable(T)</td>
+<td>Turn the given possibly-null reference into an Optional, treating non-null as present and null as absent.</td>
+</tr>
+</tbody></table>
+<h4 id="Query-methods"><a href="#Query-methods" class="headerlink" title="Query methods"></a>Query methods</h4><p>下面是常用的实例方法</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>boolean isPresent()</td>
+<td>Returns true if this Optional contains a non-null instance.</td>
+</tr>
+<tr>
+<td>void ifPresent(Consumer&lt;? super T&gt; consumer)</td>
+<td>If a value is present, invoke the specified consumer with the value, otherwise do nothing.</td>
+</tr>
+<tr>
+<td>T get()</td>
+<td>Returns the contained T instance, which must be present; otherwise, throws an NoSuchElementException</td>
+</tr>
+<tr>
+<td>T orElse(T other)</td>
+<td>Return the value if present, otherwise return other.</td>
+</tr>
+<tr>
+<td>Optional<U> map(Function&lt;? super T, ? extends U&gt; mapper)</td>
+<td>If a value is present, apply the provided mapping function to it, and if the result is non-null, return an Optional describing the result.  Otherwise return an empty Optional.</td>
+</tr>
+</tbody></table>
+<p>Optional 还提供了其它有用的方法，具体信息可以去看 Javadoc</p>
+<h4 id="What’s-the-point"><a href="#What’s-the-point" class="headerlink" title="What’s the point?"></a>What’s the point?</h4><p>除了通过给 null 一个名字(缺失与否)来增强可读性，Optional 带来的最大好处在于它是 idiot-proof-ness 的，它迫使你去思考 absent 的场景到底是怎样的，否则你的程序可能会编译不过去，因为你必须手动 unwrap the Optional 并处理 absent 的情况。直接使用 null 使这些情况很容易被忽略，尽管 FindBugs 也可以提供帮助，但是我们不认为它能像 Optional 一样解决这个问题</p>
+<p><strong>当返回一个可能存在或者可能不存在的值时，使用Optional 更加有用。</strong>对于 <code>other.method(a, b)</code>方法，相比我们在实现这个方法时忘记判断 a,b 可能为 null 这种情况，我们更容易忘记这个方法可能会返回 null。而返回 Optional 则使调用者不可能忘记处理这种情况，因为他们必须 unwrap 这个对象来使他们的代码能编译</p>
+<h3 id="Convenience-methods"><a href="#Convenience-methods" class="headerlink" title="Convenience methods"></a>Convenience methods</h3><p>无论何时你想使用一个默认值来代替 null，可以使用 <code>MoreObjects.firstNonNull(T, T)</code>，正如该方法的名字所示，如果两个输入都是 null，该方法会通过抛出NPE来实现 fail fast。如果你在使用 Optional 对象，那么 <code>first.orElse(second)</code> 是更好的替代方法</p>
+<p>在<code>Strings</code>类中提供了几个处理可能为空的方法，而且我们专门定义了恰当的名字：</p>
+<ul>
+<li>emptyToNull(String)</li>
+<li>isNullOrEmpty(String)</li>
+<li>nullToEmpty(String)</li>
+</ul>
+<p>我们想强调一下，这些方法主要是用来处理那些把 null 字符串和 empty 字符串等同看待的API。每当你写出把 null 和 empty 字符串混用的代码，Guava 团队的小伙伴都”哭了”(null 字符串和 empty 字符串混用通常是令人不安的 code smell)</p>
+</div><div class="post-copyright"><script type="text/javascript" src="/js/copyright.js?v=1.0.0" successtext="复制成功！"></script><link rel="stylesheet" type="text/css" href="/css/copyright.css?v=1.0.0"><p><span>本文标题：</span>Using and avoiding null</p><p><span>文章作者：</span>Ryan</p><p><span>原始链接：</span><a href="/2022/06/01/Using-and-avoiding-null/">https://0x80x17.tech/2022/06/01/Using-and-avoiding-null/</a><span class="copy-path"><i class="fa fa-clipboard" data-clipboard-text="https://0x80x17.tech/2022/06/01/Using-and-avoiding-null/"></i></span></p><p><span>版权声明：</span>转载或引用请注明本文链接🔗</p></div><br><div class="tags"><ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/Java/" rel="tag">Java</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E7%BF%BB%E8%AF%91/" rel="tag">翻译</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E8%AE%BE%E8%AE%A1/" rel="tag">设计</a></li></ul></div><div class="post-nav"><a class="next" href="/2022/05/27/%E4%BD%9C%E7%94%A8%E5%9F%9F%E4%B8%8E%E9%97%AD%E5%8C%85/">作用域与闭包</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><form class="search-form" action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank"><input type="text" name="q" maxlength="20" placeholder="Search"/><input type="hidden" name="sitesearch" value="https://0x80x17.tech"/></form></div><div class="widget"><div class="author-info"><a class="info-avatar" href="/about/" title="关于"><img class="nofancybox" src="/img/avatar.png"/></a><p>A Lean Coder.</p></div></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/%E8%AE%BE%E8%AE%A1/" style="font-size: 15px;">设计</a> <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" style="font-size: 15px;">分布式系统</a> <a href="/tags/%E7%BF%BB%E8%AF%91/" style="font-size: 15px;">翻译</a> <a href="/tags/Java/" style="font-size: 15px;">Java</a> <a href="/tags/JS/" style="font-size: 15px;">JS</a> <a href="/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E7%AE%97%E6%B3%95/" style="font-size: 15px;">数据结构&算法</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2022/06/01/Using-and-avoiding-null/">Using and avoiding null</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/05/27/%E4%BD%9C%E7%94%A8%E5%9F%9F%E4%B8%8E%E9%97%AD%E5%8C%85/">作用域与闭包</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/04/13/%E9%87%8D%E6%96%B0%E8%AE%A4%E8%AF%86%E4%BF%A1%E6%81%AF%E9%9A%90%E8%97%8F/">重新认识信息隐藏</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/04/05/%E5%9B%9E%E8%B0%83%E5%8F%8A%E5%9C%A8-Java%E4%B8%AD%E7%9A%84%E4%BD%BF%E7%94%A8/">回调及在 Java中的使用</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/03/19/Debunking-the-Myths-of-RPC-REST/">Debunking the Myths of RPC&REST</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/03/03/%E5%8F%8D%E8%BD%AC%E5%8D%95%E9%93%BE%E8%A1%A8%E7%9A%84%E4%B8%89%E7%A7%8D%E7%BB%8F%E5%85%B8%E6%80%9D%E8%B7%AF/">反转单链表的三种经典思路</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/02/27/%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E5%AF%B9%E8%B1%A1%E7%9A%84%E6%80%9D%E8%80%83/">创建一个对象的思考</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/02/16/%E6%A8%A1%E7%89%88%E6%96%B9%E6%B3%95%E6%A8%A1%E5%BC%8FVS%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8F/">模版方法模式VS策略模式</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/02/02/%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F%E7%9A%84%E5%90%84%E7%A7%8D%E5%A7%BF%E5%8A%BF/">单例模式的各种姿势</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/01/15/%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F/">适配器模式</a></li></ul></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2023 <a href="/." rel="nofollow">0x80x17.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=1.0.0" async></script><script type="text/javascript" src="//lib.baomitu.com/fancybox/latest/jquery.fancybox.min.js"></script><script type="text/javascript" src="/js/fancybox.js?v=1.0.0"></script><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/fancybox/latest/jquery.fancybox.min.css"><script type="text/javascript" src="/js/copycode.js?v=1.0.0" successtext="复制成功！"></script><link rel="stylesheet" type="text/css" href="/css/copycode.css?v=1.0.0"><script type="text/javascript" src="/js/codeblock-resizer.js?v=1.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=1.0.0"></script></div></body></html>
