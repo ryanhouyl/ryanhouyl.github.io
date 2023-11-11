@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content=""><title>聊聊幂等 | 0x80x17</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=1.0.0"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/normalize/latest/normalize.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/latest/pure-min.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/latest/grids-responsive-min.min.css"><link rel="stylesheet" href="//lib.baomitu.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//lib.baomitu.com/jquery/latest/jquery.min.js"></script><link rel="icon" mask="" sizes="any" href="/favicon.ico"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><script type="text/javascript" src="//lib.baomitu.com/clipboard.js/latest/clipboard.min.js"></script><script type="text/javascript" src="//lib.baomitu.com/toastr.js/latest/toastr.min.js"></script><link rel="stylesheet" href="//lib.baomitu.com/toastr.js/latest/toastr.min.css"><meta name="generator" content="Hexo 7.0.0"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">聊聊幂等</h1><a id="logo" href="/.">0x80x17</a><p class="description">hello, world:)</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">聊聊幂等</h1><div class="post-meta">2023-03-03</div><div class="clear"><div class="toc-article" id="toc"><div class="toc-title">文章目录</div><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%98%AF%E4%BB%80%E4%B9%88"><span class="toc-text">是什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88"><span class="toc-text">为什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%8E%E4%B9%88%E5%81%9A"><span class="toc-text">怎么做</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%96%B9%E6%B3%95%E8%AE%BA"><span class="toc-text">方法论</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AE%9E%E8%B7%B5"><span class="toc-text">实践</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8E%A8%E8%8D%90%E9%98%85%E8%AF%BB"><span class="toc-text">推荐阅读</span></a></li></ol></div></div><div class="post-content"><h3 id="是什么"><a href="#是什么" class="headerlink" title="是什么"></a>是什么</h3><p>什么是幂等（Idempotency）？简单来说，<strong>一个操作如果具有任意多次执行所产生的影响均与一次执行的影响相同</strong>，我们就称之为幂等（这里的操作可以是对外提供的 HTTP 接口，RPC 接口，也可以是接收消息的内部接口，甚至是一个内部方法）</p>
+<p>这样的定义，其实是一个语义范畴对行为结果的定义。如何用语法和规则去确保行为能达到这个结果，往往需要很谨慎的设计和实现。</p>
+<h3 id="为什么"><a href="#为什么" class="headerlink" title="为什么"></a>为什么</h3><p>我们为什么需要考虑幂等，或者说幂等为什么重要？</p>
+<span id="more"></span>
+
+<p>设想一下以下情形： </p>
+<ul>
+<li>在App中下订单的时候，点击确认之后，没反应，就又点击了几次。在这种情况下，如果无法保证该接口的幂等性，那么将会出现重复下单问题</li>
+<li>在接收消息的时候，消息推送重复。如果处理消息的接口无法保证幂等，那么重复消费消息产生的影响可能会非常大</li>
+</ul>
+<p>在分布式环境中，网络环境更加复杂，因前端操作重复、网络抖动&amp;故障、消息重复、响应速度慢等原因，对接口的重复调用概率会比集中式环境下更大，尤其是重复消息在分布式环境中很难避免(比如 MQ 中间件为了保证消息的可靠性，就一定会引入重复消息)</p>
+<p>通过间接的实现接口的幂等性来防止重复操作所带来的影响，这样只要接口是幂等的，我们就可以通过定时任务加重试的机制确保任务的正确执行</p>
+<h3 id="怎么做"><a href="#怎么做" class="headerlink" title="怎么做"></a>怎么做</h3><h4 id="方法论"><a href="#方法论" class="headerlink" title="方法论"></a>方法论</h4><p>有些接口是天然保证幂等性的，如查询操作。有些对数据的修改是一个常量，并且无其他记录和操作，那也可以说是具有幂等性的.</p>
+<p>其他情况下，所有涉及对数据的修改、状态的变更就都有必要防止重复性操作的发生</p>
+<p>那么幂等又该如何实现呢？“多次执行所产生的影响均与一次执行的影响相同”，简而言之，<strong>我们需要一个 Dedup（去重）的机制</strong>。这往往有很多不同的实现方法，但是有两个很关键的因素：</p>
+<ol>
+<li><p>Idempotency Key（幂等令牌）。也就是客户端和服务器端通过什么来识别这实际上是同一个请求，或是同一个请求的多次 retry（尝试）。这往往需要双方有一个既定的协议。往往是类似账单号或者交易 token（令牌）这样一个可以唯一标识同一个请求意愿的元素。通常由客户端生成</p>
+</li>
+<li><p>Uniqueness Guarantee（确保唯一性）。服务器端用什么机制去确保同一个请求一定不会被处理两次。最通常的做法是利用数据库。比如把幂等令牌所在的数据库表的 Column（列）作为 unique indexed。这样，当你试图存储两个含有同样令牌的请求时，必定有一个会报错。注意，简单的读检查并不一定行，因为读与读之间会有 Race Condition（竞争条件），因此还是有可能出错</p>
+</li>
+</ol>
+<p>如果一个系统可以正确的处理和实现上面的两个要素，那么基本就能达到幂等的需求</p>
+<p>需要注意几个实现点：</p>
+<ol>
+<li><p>幂等令牌什么时候产生，怎么产生？</p>
+<p> 我们需要保证同一请求的多次重复使用的是同一个令牌，不同的请求使用不同的令牌</p>
+</li>
+<li><p>有没有令牌被误删的可能。幂等令牌是由客户端生成的。那么如果生成的令牌在被使用后，不小心因为 DB rollback 等原因被删除了。那么客户端就不知道自己其实已经发过一次请求。就有可能生成一个新的请求，并产生全新的令牌，而服务端将对此一无所知</p>
+</li>
+<li><p>各种竞争条件。上面说的用 DB 读来确保唯一性经常因为竞争而不工作。其实一个需要幂等的系统中，保证唯一性的各个环节和实现，都要考虑 Race Condition</p>
+</li>
+<li><p>对请求 Retry 的处理。这大部分是服务器端要做的。一个常见的方法是区分正在处理的请求、和处理成功、处理失败的请求。这样当客户端重试的时候，根据情况或者直接返回，或者再次处理</p>
+</li>
+<li><p>一个系统中需要多层幂等</p>
+<p> 什么意思呢？A 发送请求给 B，B 处理的一部分是要发送请求给另一个系统 C。在这个链条中，如果 A B C  中任何一个系统并没有正确实现幂等，也就是出现了 “幂等漏洞”，那么一个请求还是有可能被多次执行，产生区别于一次执行的影响</p>
+</li>
+</ol>
+<h4 id="实践"><a href="#实践" class="headerlink" title="实践"></a>实践</h4><ol>
+<li><p>前端防重复提交</p>
+</li>
+<li><p>服务端接口对请求 Retry 进行处理，一个常见的方法是区分正在处理的请求、和处理成功、处理失败的请求。这样当客户端重试的时候，根据情况或者直接返回，或者再次处理</p>
+<p> 比如根据业务单据的当前状态判断业务流程的执行逻辑，如果当前状态已经是成功执行后的状态了，则直接返回成功即可，避免重复执行或返回报错</p>
+</li>
+<li><p>MQ 如何实现幂等？</p>
+<p> MQ 中为了保证消息的可达性，在设计上需要满足 ：</p>
+<ul>
+<li>消息在 broker 落地</li>
+<li>消息超时重传 &amp; 消息确认</li>
+</ul>
+<p> 这就可能导致消息总线、或者业务方收到重复的消息，从而对业务产生影响</p>
+<ul>
+<li><p>3-1. MQ producer 到 broker 如何实现幂等？</p>
+<p>  MQ producer 在没有收到 broker 的消息确认时，会进行超时重传，为了避免 broker 重复落地消息，对每条消息，MQ 系统内部必须生成一个 inner-msg-id，作为去重和幂等的依据，这个内部消息ID的特性是：</p>
+<ul>
+<li>全局唯一</li>
+<li>MQ 生成，具备业务无关性，对消息发送方和消息接收方屏蔽</li>
+</ul>
+<p>  有了这个 inner-msg-id，就能保证上半场重发，也只有1条消息落到 MQ broker 的 DB 中，实现上半场幂等
+  </p>
+</li>
+<li><p>3-2. MQ broker 到 consumer 如何实现幂等？</p>
+<p>  consumer 消费完消息后，需要主动回送 broker ACK 消息，是消息消费业务方的主动调用行为，不能由 MQ client 自动发起，因为 MQ 系统不知道消费方什么时候真正消费成功</p>
+<p>  如果 consumer 的 ACK 消息丢失，broker 会超时重传消息，可能会导致 comsumer 重复消费</p>
+<p>  此时重发是 broker 发起的，消息的处理是消息消费业务方，消息重发势必导致业务方重复消费，为了保证业务幂等性，业务消息体中，必须有一个 biz-id，作为去重和幂等的依据，这个业务ID的特性是：</p>
+<ul>
+<li>对于同一个业务场景，全局唯一</li>
+<li>由业务消息发送方生成，业务相关，对 MQ 透明</li>
+<li>由业务消息消费方负责判重，以保证幂等</li>
+</ul>
+<p>  最常见的业务ID有：支付ID，订单ID，帖子ID等</p>
+<p>  比如支付购卡场景中，发送方必须将支付ID放到消息体中，消费方必须对同一个支付ID 进行判重，保证购卡的幂等</p>
+<p>  有了这个业务 ID，才能够保证消息消费业务方即使收到重复消息，也只有1条消息被消费，保证了幂等</p>
+</li>
+</ul>
+</li>
+<li><p>引入中间层专门实现去重，保证幂等性</p>
+</li>
+</ol>
+<ul>
+<li><p>4-1. 基本实现思路</p>
+<p>  实现思路是将每一个不同的业务操作赋予其唯一性。这个唯一性是通过对不同操作所对应的唯一的内容特性生成一个唯一的全局ID来实现的</p>
+<p>  基本原则为：相同的操作生成相同的全局 ID；不同的操作生成不同的全局 ID。生成的全局 ID 需要存储在外部存储引擎中，数据库、Redis等均可实现</p>
+<p>  实现难点在于如何保证其判断重复的可靠性。分布式环境的复杂度，业务操作的不确定性，以及网络断开或主机宕机等等问题都需要考虑。这里列出几个典型的场景：</p>
+<ul>
+<li>如果操作执行失败，理想的情况应该是另一个相同的操作可以立即进行。因此，需要对业务方的操作结果进行判断，如果操作失败，那么就需要立即删除该全局ID</li>
+<li>如果操作超时或主机宕机，当前的操作无法告知是否成功。那么我们必须引入超时机制，一旦长时间获取不到业务方的操作反馈，那么也需要该全局ID失效</li>
+<li>结合上两个场景，既然全局ID会失效并且可能会被删除，那就需要保证删除的不是另一个相同操作的全局ID。这就需要将特殊的标识记录下来，并由此来判断。这里所用的标识为当前时间戳</li>
+</ul>
+</li>
+<li><p>4-2. 基本使用方式</p>
+<p>  使用时，业务方只需要在操作的前后调用该中间件系统提供的前置方法和后置方法，如果前置方法返回可进行操作，则说明此时无重复操作，可以进行。否则则直接结束操作</p>
+<p>  使用方需要考虑的主要是下面两个参数：</p>
+<ul>
+<li>空间全局性：业务方输入的能够标志操作唯一性的内容特性，可以是唯一性的 String 类型的ID，也可以是 map、POJO 等形式。如订单ID等</li>
+<li>时间全局性：确定在多长时间内不允许重复，1小时内还是一个月内亦或是永久</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="推荐阅读"><a href="#推荐阅读" class="headerlink" title="推荐阅读"></a>推荐阅读</h3><ol>
+<li><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/EDkuMW5-hdIxs2GXMFnj_Q">每个工程师都应该了解的：聊聊幂等</a></li>
+<li><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s?__biz=MjM5ODYxMDA5OQ==&mid=2651960002&idx=1&sn=c0775231bccf002c3178eabe43f1cdcb&chksm=bd2d071e8a5a8e08c3a5287247ea41dee6b2621e6ffafbf909ec1e8a866b7c816eeeea227246&scene=21#wechat_redirect">消息总线真的能保证幂等？</a></li>
+<li><a target="_blank" rel="noopener" href="https://tech.meituan.com/2016/09/29/distributed-system-mutually-exclusive-idempotence-cerberus-gtis.html">分布式系统互斥性与幂等性问题的分析与解决</a></li>
+</ol>
+</div><div class="post-copyright"><script type="text/javascript" src="/js/copyright.js?v=1.0.0" successtext="复制成功！"></script><link rel="stylesheet" type="text/css" href="/css/copyright.css?v=1.0.0"><p><span>本文标题：</span>聊聊幂等</p><p><span>文章作者：</span>Ryan</p><p><span>原始链接：</span><a href="/2023/03/03/聊聊幂等/">https://0x80x17.tech/2023/03/03/%E8%81%8A%E8%81%8A%E5%B9%82%E7%AD%89/</a><span class="copy-path"><i class="fa fa-clipboard" data-clipboard-text="https://0x80x17.tech/2023/03/03/%E8%81%8A%E8%81%8A%E5%B9%82%E7%AD%89/"></i></span></p><p><span>版权声明：</span>转载或引用请注明本文链接🔗</p></div><br><div class="tags"><ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" rel="tag">分布式系统</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E8%AE%BE%E8%AE%A1/" rel="tag">设计</a></li></ul></div><div class="post-nav"><a class="next" href="/2023/02/19/Java-ThreadLocal%E8%A7%A3%E6%9E%90-2/">Java ThreadLocal解析(2)</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><form class="search-form" action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank"><input type="text" name="q" maxlength="20" placeholder="Search"/><input type="hidden" name="sitesearch" value="https://0x80x17.tech"/></form></div><div class="widget"><div class="author-info"><a class="info-avatar" href="/about/" title="关于"><img class="nofancybox" src="/img/avatar.png"/></a><p>A Lean Coder.</p></div></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/%E8%AE%BE%E8%AE%A1/" style="font-size: 15px;">设计</a> <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" style="font-size: 15px;">分布式系统</a> <a href="/tags/%E7%BF%BB%E8%AF%91/" style="font-size: 15px;">翻译</a> <a href="/tags/Java/" style="font-size: 15px;">Java</a> <a href="/tags/%E8%99%9A%E6%8B%9F%E6%9C%BA/" style="font-size: 15px;">虚拟机</a> <a href="/tags/%E7%BA%BF%E7%A8%8B-%E5%B9%B6%E5%8F%91/" style="font-size: 15px;">线程&并发</a> <a href="/tags/%E7%BB%8F%E9%AA%8C%E6%95%99%E8%AE%AD/" style="font-size: 15px;">经验教训</a> <a href="/tags/%E8%AF%AD%E6%B3%95/" style="font-size: 15px;">语法</a> <a href="/tags/%E5%B7%A5%E5%85%B7/" style="font-size: 15px;">工具</a> <a href="/tags/%E4%B8%AD%E9%97%B4%E4%BB%B6/" style="font-size: 15px;">中间件</a> <a href="/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E7%AE%97%E6%B3%95/" style="font-size: 15px;">数据结构&算法</a> <a href="/tags/JS/" style="font-size: 15px;">JS</a> <a href="/tags/%E4%BC%98%E5%8C%96/" style="font-size: 15px;">优化</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2023/03/03/%E8%81%8A%E8%81%8A%E5%B9%82%E7%AD%89/">聊聊幂等</a></li><li class="post-list-item"><a class="post-list-link" href="/2023/02/19/Java-ThreadLocal%E8%A7%A3%E6%9E%90-2/">Java ThreadLocal解析(2)</a></li><li class="post-list-item"><a class="post-list-link" href="/2023/02/12/Java-ThreadLocal%E8%A7%A3%E6%9E%90-1/">Java ThreadLocal解析(1)</a></li><li class="post-list-item"><a class="post-list-link" href="/2023/01/15/Java-AQS%E8%A7%A3%E6%9E%90-2/">Java AQS解析(2)</a></li><li class="post-list-item"><a class="post-list-link" href="/2023/01/09/Java-AQS%E8%A7%A3%E6%9E%90-1/">Java AQS解析(1)</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/12/15/Java-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B%E8%A7%A3%E8%AF%BB-2/">Java 内存模型解读(2)</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/12/12/Java-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B%E8%A7%A3%E8%AF%BB-1/">Java 内存模型解读(1)</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/11/29/%E5%86%8D%E8%B0%88-Java%E7%BA%BF%E7%A8%8B%E6%B1%A0/">再谈 Java线程池</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/11/13/Visitor-Pattern-Tutorial/">Visitor Pattern Tutorial</a></li><li class="post-list-item"><a class="post-list-link" href="/2022/11/02/Java-%E7%BA%BF%E7%A8%8B%E6%B1%A0%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86/">Java 线程池实现原理</a></li></ul></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2023 <a href="/." rel="nofollow">0x80x17.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=1.0.0" async></script><script type="text/javascript" src="//lib.baomitu.com/fancybox/latest/jquery.fancybox.min.js"></script><script type="text/javascript" src="/js/fancybox.js?v=1.0.0"></script><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/fancybox/latest/jquery.fancybox.min.css"><script type="text/javascript" src="/js/copycode.js?v=1.0.0" successtext="复制成功！"></script><link rel="stylesheet" type="text/css" href="/css/copycode.css?v=1.0.0"><script type="text/javascript" src="/js/codeblock-resizer.js?v=1.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=1.0.0"></script></div></body></html>
