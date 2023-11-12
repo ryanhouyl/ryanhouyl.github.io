@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>https://0x80x17.tech/2023/07/09/%E4%BD%8D%E5%9B%BE%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/</loc>
+    <loc>https://0x80x17.tech/2022/07/01/MySQL-%E7%B4%A2%E5%BC%95%E6%A6%82%E8%BF%B0/</loc>
     
     <lastmod>2023-11-12</lastmod>
     
@@ -11,7 +11,7 @@
   </url>
   
   <url>
-    <loc>https://0x80x17.tech/googlefc5029c02bcb3be4.html</loc>
+    <loc>https://0x80x17.tech/2023/07/09/%E4%BD%8D%E5%9B%BE%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/</loc>
     
     <lastmod>2023-11-12</lastmod>
     
@@ -551,6 +551,20 @@
   </url>
   
   <url>
+    <loc>https://0x80x17.tech/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E7%AE%97%E6%B3%95/</loc>
+    <lastmod>2023-11-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://0x80x17.tech/tags/%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8/</loc>
+    <lastmod>2023-11-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
     <loc>https://0x80x17.tech/tags/%E4%B8%AD%E9%97%B4%E4%BB%B6/</loc>
     <lastmod>2023-11-12</lastmod>
     <changefreq>weekly</changefreq>
@@ -559,13 +573,6 @@
   
   <url>
     <loc>https://0x80x17.tech/tags/%E7%BD%91%E7%BB%9C/</loc>
-    <lastmod>2023-11-12</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://0x80x17.tech/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-%E7%AE%97%E6%B3%95/</loc>
     <lastmod>2023-11-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
